@@ -7,7 +7,7 @@ SummaryText = Annotated[
         min_length = 1,
         strip_whitespace = True,
         description = "The raw text to be summarized",
-        examples = ["Leadership coaching often focuses heavily on the development of ..."]
+        examples = ["Hi Coach, I just finished a session with Jordan. We talked for about 45 minutes. Jordan feels like they are hitting a wall with the Project Phoenix deliverables. They mentioned that the cross-functional communication with the Engineering team is 'broken' and it's causing delays. On a positive note, Jordan expressed interest in moving into a Lead role next year. I told them we’d look at the budget for a leadership certification, but first, they need to improve their delegation skills because right now they are doing everything themselves. We agreed to meet again next Tuesday to look at a revised project timeline."]
     )
 ]
 

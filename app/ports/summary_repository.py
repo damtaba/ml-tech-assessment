@@ -1,6 +1,6 @@
 import pydantic
 from abc import ABC, abstractmethod
-from app.schemas.responses import Summary
+from app.domain.entities import Summary
 
 class SummaryRepository(ABC):
     @abstractmethod
@@ -9,4 +9,8 @@ class SummaryRepository(ABC):
 
     @abstractmethod
     def get_by_id(self, id: str) -> Summary | None:
+        pass
+
+    @abstractmethod
+    def list_ids(self) -> list[str]:
         pass

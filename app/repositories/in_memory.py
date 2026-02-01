@@ -10,3 +10,6 @@ class InMemorySummaryRepository(SummaryRepository):
 
     def get_by_id(self, id: str) -> Summary | None:
         return self._store.get(id)
+
+    def list_ids(self) -> list[str]:
+        return list(self._store.keys())

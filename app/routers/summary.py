@@ -1,81 +1,116 @@
-from fastapi import APIRouter, Depends, Query
-from app.schemas.requests import TextToSummary
-from app.schemas.responses import SummaryResponse
-from app.schemas.llm_responses import SummaryLLMOutput
+import asyncio
 from uuid import uuid4
+
+from fastapi import APIRouter, Depends, HTTPException
+
 from app.dependencies import get_llm_service_openai, get_summary_repository
+from app.domain.entities import Summary
 from app.ports.llm import LLm
 from app.ports.summary_repository import SummaryRepository
-from app.domain.entities import Summary
-from app.prompts import SYSTEM_PROMPT, RAW_USER_PROMPT
-import asyncio
-from typing import Annotated
+from app.prompts import RAW_USER_PROMPT, SYSTEM_PROMPT
+from app.schemas.llm_responses import SummaryLLMOutput
+from app.schemas.requests import TextToSummary
+from app.schemas.responses import (
+    BatchSummaryItem,
+    BatchSummaryResponse,
+    SummaryResponse,
+)
 
 example = """In today’s volatile market, the traditional "command and control" style of leadership isn't just outdated—it’s a liability. Many leaders find themselves trapped in the 'Expert Paradox,' where they feel they must have all the answers to maintain authority. However, this often creates a bottleneck, stifling team creativity and leading to burnout for the person at the top.
 True leadership coaching focuses on the transition from being a manager who directs to a coach who multiplies. By adopting a "curiosity-first" framework, leaders can empower their teams to solve complex problems independently. This involves mastering the art of the powerful question, active listening, and providing radical candor that fosters growth rather than defensiveness. When a leader shifts from solving every problem to building the problem-solving capacity of their people, the entire organization gains the agility needed to thrive in uncertain times."""
 
-router = APIRouter(
-    prefix = "/summary_maker",
-    tags = ["summary_maker"]
-)
+router = APIRouter(prefix="/summary_maker", tags=["summary_maker"])
 
-@router.get("/get_summary_and_ctas")
+
+@router.get(
+    "/get_summary_and_ctas",
+    response_model=SummaryResponse,
+    summary="Gets the summary and calls to action (CTAs) for a given text.",
+    description=(
+        "Provides a summary and actionable CTAs for a supplied text. "
+        "This endpoint accepts a text input, processes it via the LLM service, "
+        "and returns a structured response containing the generated summary and a list of CTAs. "
+        "The summary is designed to encapsulate the key ideas, while the CTAs are actionable recommendations "
+        "or next steps derived from the content."
+    ),
+)
 async def get_summary_and_ctas(
     text_to_summary: TextToSummary = example,
     llm: LLm = Depends(get_llm_service_openai),
-    repository: SummaryRepository = Depends(get_summary_repository)
-    ) -> SummaryResponse:
-    
+    repository: SummaryRepository = Depends(get_summary_repository),
+) -> SummaryResponse:
     llm_result = llm.run_completion(
-        SYSTEM_PROMPT, 
-        RAW_USER_PROMPT.format(transcript=text_to_summary), 
-        dto = SummaryLLMOutput)
+        SYSTEM_PROMPT,
+        RAW_USER_PROMPT.format(transcript=text_to_summary),
+        dto=SummaryLLMOutput,
+    )
 
     summary_entity = Summary(
-        id = str(uuid4()),
-        content=llm_result.content,
-        ctas=llm_result.ctas
-        )
+        id=str(uuid4()), content=llm_result.content, ctas=llm_result.ctas
+    )
 
     repository.save(summary_entity)
 
     return SummaryResponse.from_entity(summary_entity)
 
-@router.get("/get_summary_and_ctas_by_id")
-async def get_summary_and_ctas_by_id(
-    id: str, 
-    repository: SummaryRepository = Depends(get_summary_repository)) -> Summary:
 
+@router.get(
+    "/get_summary_and_ctas_by_id",
+    response_model=Summary,
+    summary="Retrieve a summary and CTAs by its unique ID.",
+    description=(
+        "Fetches a previously generated summary and its associated calls to action (CTAs) "
+        "using the provided summary ID. This endpoint allows consumers to retrieve the summary content "
+        "and actionable CTAs for a specific document or text that was processed earlier and stored in the repository."
+    ),
+)
+async def get_summary_and_ctas_by_id(
+    id: str, repository: SummaryRepository = Depends(get_summary_repository)
+) -> Summary:
     summary = repository.get_by_id(id)
 
     if summary is None:
         raise HTTPException(status_code=404, detail="Summary not found")
-    else:
-        return summary
+    return summary
 
-@router.post("/async_get_summary_and_ctas")
+
+@router.post(
+    "/async_get_summary_and_ctas",
+    response_model=BatchSummaryResponse,
+    summary="Asynchronously generate summaries and CTAs for a batch of texts.",
+    description=(
+        "Accepts a list of texts and asynchronously processes each to generate a summary and actionable calls to action (CTAs) "
+        "using the LLM service. Instead of handling requests one by one, this endpoint allows multiple texts to be summarized in parallel, "
+        "returning a list of structured summary responses. Each response contains the summary and associated CTAs for the corresponding input text."
+    ),
+)
 async def async_single_get_summary_and_ctas(
-    list_of_texts_to_summarize: list[TextToSummary] = [example,example],
+    list_of_texts_to_summarize: list[TextToSummary] = [example, example],
     llm: LLm = Depends(get_llm_service_openai),
-    repository: SummaryRepository = Depends(get_summary_repository)) -> list[SummaryResponse]:
-
+    repository: SummaryRepository = Depends(get_summary_repository),
+) -> BatchSummaryResponse:
     async def process_one_request(text_to_summarize: TextToSummary) -> Summary:
         llm_result = await llm.run_completion_async(
-        SYSTEM_PROMPT, 
-        RAW_USER_PROMPT.format(transcript=text_to_summarize), 
-        dto = SummaryLLMOutput)
+            SYSTEM_PROMPT,
+            RAW_USER_PROMPT.format(transcript=text_to_summarize),
+            dto=SummaryLLMOutput,
+        )
 
         summary_entity = Summary(
-            id = str(uuid4()),
-            content=llm_result.content,
-            ctas=llm_result.ctas
-            )
+            id=str(uuid4()), content=llm_result.content, ctas=llm_result.ctas
+        )
 
         repository.save(summary_entity)
 
         return summary_entity
 
     tasks = [process_one_request(item) for item in list_of_texts_to_summarize]
+    raw_results = await asyncio.gather(*tasks, return_exceptions=True)
+    items: list[BatchSummaryItem] = []
+    for result in raw_results:
+        if isinstance(result, Exception):
+            items.append(BatchSummaryItem(error=str(result)))
+        else:
+            items.append(BatchSummaryItem(summary=SummaryResponse.from_entity(result)))
 
-    summary_entities = await asyncio.gather(*tasks)
-    return [SummaryResponse.from_entity(s) for s in summary_entities]
+    return BatchSummaryResponse(items=items)

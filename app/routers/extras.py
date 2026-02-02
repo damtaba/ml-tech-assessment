@@ -1,19 +1,21 @@
 from fastapi import APIRouter, Depends
-from app.schemas.requests import TextToSummary
-from app.schemas.responses import Summary
-from uuid import uuid4
-from app.adapters.openai import OpenAIAdapter
-from app.dependencies import get_llm_service_openai, get_summary_repository
-from app.ports.llm import LLm
-from app.prompts import SYSTEM_PROMPT, RAW_USER_PROMPT
-from app.repositories.in_memory import SummaryRepository
-import asyncio
 
-router = APIRouter(
-    prefix = "/extras",
-    tags = ["extras"]
+from app.dependencies import get_summary_repository
+from app.ports.summary_repository import SummaryRepository
+
+router = APIRouter(prefix="/extras", tags=["extras"])
+
+
+@router.get(
+    "/get_summaries_ids",
+    response_model=list[str],
+    summary="Retrieve list of all summary IDs",
+    description=(
+        "Fetches a list containing the unique IDs of all summaries that have been generated and stored "
+        "in the repository. This endpoint provides a simple way to enumerate all available summaries for later retrieval."
+    ),
 )
-
-@router.get("/get_summaries_ids")
-async def get_summaries_ids(repository: SummaryRepository = Depends(get_summary_repository))-> list[str]:
+async def get_summaries_ids(
+    repository: SummaryRepository = Depends(get_summary_repository),
+) -> list[str]:
     return repository.list_ids()

@@ -1,9 +1,10 @@
-from app.schemas.responses import Summary
+from app.domain.entities import Summary
 from app.ports.summary_repository import SummaryRepository
+
 
 class InMemorySummaryRepository(SummaryRepository):
     def __init__(self) -> None:
-        self._store : dict[str, Summary] = {}
+        self._store: dict[str, Summary] = {}
 
     def save(self, summary: Summary) -> None:
         self._store[str(summary.id)] = summary

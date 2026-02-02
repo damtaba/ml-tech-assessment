@@ -1,10 +1,11 @@
-import pydantic
 from abc import ABC, abstractmethod
+
 from app.domain.entities import Summary
+
 
 class SummaryRepository(ABC):
     @abstractmethod
-    def save(self, summary : Summary) -> None:
+    def save(self, summary: Summary) -> None:
         pass
 
     @abstractmethod

@@ -21,5 +21,15 @@ build-backend = "poetry.core.masonry.api"
 
 [dependency-groups]
 dev = [
-    "pytest-cov (>=7.0.0,<8.0.0)"
+    "pytest-cov (>=7.0.0,<8.0.0)",
+    "ruff (>=0.14.14,<0.15.0)",
+    "pre-commit (>=4.5.1,<5.0.0)"
 ]
+
+[tool.ruff]
+line-length = 88
+select = ["E", "F", "I"] # Error, Flake8, Isort rules
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"

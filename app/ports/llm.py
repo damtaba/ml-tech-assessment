@@ -9,3 +9,9 @@ class LLm(ABC):
         self, system_prompt: str, user_prompt: str, dto: type[pydantic.BaseModel]
     ) -> pydantic.BaseModel:
         pass
+
+    @abstractmethod
+    async def run_completion_async(
+        self, system_prompt: str, user_prompt: str, dto: type[pydantic.BaseModel]
+    ) -> pydantic.BaseModel:
+        pass

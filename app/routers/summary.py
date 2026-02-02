@@ -1,7 +1,7 @@
 import asyncio
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.dependencies import get_llm_service_openai, get_summary_repository
 from app.domain.entities import Summary
@@ -15,9 +15,6 @@ from app.schemas.responses import (
     BatchSummaryResponse,
     SummaryResponse,
 )
-
-example = """In today’s volatile market, the traditional "command and control" style of leadership isn't just outdated—it’s a liability. Many leaders find themselves trapped in the 'Expert Paradox,' where they feel they must have all the answers to maintain authority. However, this often creates a bottleneck, stifling team creativity and leading to burnout for the person at the top.
-True leadership coaching focuses on the transition from being a manager who directs to a coach who multiplies. By adopting a "curiosity-first" framework, leaders can empower their teams to solve complex problems independently. This involves mastering the art of the powerful question, active listening, and providing radical candor that fosters growth rather than defensiveness. When a leader shifts from solving every problem to building the problem-solving capacity of their people, the entire organization gains the agility needed to thrive in uncertain times."""
 
 router = APIRouter(prefix="/summary_maker", tags=["summary_maker"])
 
@@ -35,13 +32,17 @@ router = APIRouter(prefix="/summary_maker", tags=["summary_maker"])
     ),
 )
 async def get_summary_and_ctas(
-    text_to_summary: TextToSummary = example,
+    text_to_summary: TextToSummary = Query(
+        ...,
+        description="The transcript text to analyze",
+        example="This is a sample transcript discussing project goals...",
+    ),
     llm: LLm = Depends(get_llm_service_openai),
     repository: SummaryRepository = Depends(get_summary_repository),
 ) -> SummaryResponse:
     llm_result = llm.run_completion(
         SYSTEM_PROMPT,
-        RAW_USER_PROMPT.format(transcript=text_to_summary),
+        RAW_USER_PROMPT.format(transcript=str(text_to_summary)),
         dto=SummaryLLMOutput,
     )
 
@@ -85,14 +86,14 @@ async def get_summary_and_ctas_by_id(
     ),
 )
 async def async_single_get_summary_and_ctas(
-    list_of_texts_to_summarize: list[TextToSummary] = [example, example],
+    list_of_texts_to_summarize: list[TextToSummary],
     llm: LLm = Depends(get_llm_service_openai),
     repository: SummaryRepository = Depends(get_summary_repository),
 ) -> BatchSummaryResponse:
     async def process_one_request(text_to_summarize: TextToSummary) -> Summary:
         llm_result = await llm.run_completion_async(
             SYSTEM_PROMPT,
-            RAW_USER_PROMPT.format(transcript=text_to_summarize),
+            RAW_USER_PROMPT.format(transcript=str(text_to_summarize)),
             dto=SummaryLLMOutput,
         )
 
@@ -108,7 +109,7 @@ async def async_single_get_summary_and_ctas(
     raw_results = await asyncio.gather(*tasks, return_exceptions=True)
     items: list[BatchSummaryItem] = []
     for result in raw_results:
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             items.append(BatchSummaryItem(error=str(result)))
         else:
             items.append(BatchSummaryItem(summary=SummaryResponse.from_entity(result)))
